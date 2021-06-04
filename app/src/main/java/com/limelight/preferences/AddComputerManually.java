@@ -96,7 +96,7 @@ public class AddComputerManually extends Activity {
         }
     }
 
-    private void doAddPc(String host) {
+    public void doAddPc(String host) {
         boolean wrongSiteLocal = false;
         boolean success;
         int portTestResult;

@@ -65,7 +65,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
-
+            debuggable true
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -124,4 +124,5 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.12.12'
     implementation 'com.squareup.okio:okio:1.17.5'
     implementation 'org.jmdns:jmdns:3.5.5'
+    implementation 'com.android.volley:volley:1.2.0'
 }

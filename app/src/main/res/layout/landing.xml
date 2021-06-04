@@ -1,0 +1,61 @@
+<!-- Parent Layout -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+xmlns:tools="http://schemas.android.com/tools"
+android:layout_width="match_parent"
+android:layout_height="match_parent"
+android:orientation="vertical"
+android:paddingBottom="@dimen/activity_vertical_margin"
+android:paddingLeft="@dimen/activity_horizontal_margin"
+android:paddingRight="@dimen/activity_horizontal_margin"
+android:paddingTop="@dimen/activity_vertical_margin"
+tools:context=".LandingView">
+
+<EditText
+android:id="@+id/userName"
+android:layout_width="match_parent"
+android:layout_height="50dp"
+android:layout_marginLeft="10dp"
+android:hint="User Name"
+android:imeOptions="actionNext"
+android:paddingLeft="10dp"
+android:singleLine="true"
+/>
+<!-- create a Linear Layout with horizontal orientation and weightSum property -->
+<!-- second Child Layout -->
+
+<EditText
+android:id="@+id/password"
+android:layout_width="match_parent"
+android:layout_height="50dp"
+android:layout_marginLeft="10dp"
+android:hint="Password"
+android:imeOptions="actionNext"
+android:paddingLeft="10dp"
+android:singleLine="true"
+android:inputType="textPassword"
+/>
+
+<LinearLayout
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:layout_marginTop="20dp"
+android:orientation="horizontal"
+android:weightSum="2">
+
+<Button
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_marginRight="10dp"
+android:layout_weight="1"
+android:text="Register"
+android:onClick="handleRegister"/>
+
+<Button
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_marginLeft="10dp"
+android:layout_weight="1"
+android:text="Log In"
+android:onClick="handleLogin"/>
+</LinearLayout>
+</LinearLayout>
