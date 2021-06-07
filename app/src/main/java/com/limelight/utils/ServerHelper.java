@@ -28,7 +28,8 @@ public class ServerHelper {
     public static final String CONNECTION_TEST_SERVER = "android.conntest.moonlight-stream.org";
 
     public static String getCurrentAddressFromComputer(ComputerDetails computer) {
-        return computer.activeAddress;
+        return computer.manualAddress;
+        // return computer.activeAddress;
     }
 
     public static Intent createPcShortcutIntent(Activity parent, ComputerDetails computer) {

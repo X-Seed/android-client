@@ -529,9 +529,9 @@ public class ComputerManagerService extends Service {
 
     private ComputerDetails tryPollIp(ComputerDetails details, String address) {
         // Fast poll this address first to determine if we can connect at the TCP layer
-        if (!fastPollIp(address)) {
-            return null;
-        }
+        // if (!fastPollIp(address)) {
+        //     return null;
+        // }
 
         try {
             NvHTTP http = new NvHTTP(address, idManager.getUniqueId(), details.serverCert,
@@ -574,7 +574,7 @@ public class ComputerManagerService extends Service {
             s.connect(new InetSocketAddress(address, NvHTTP.HTTPS_PORT), FAST_POLL_TIMEOUT);
             s.close();
             return true;
-        } catch (IOException e) {
+        } catch (Exception e) {
             return false;
         }
     }

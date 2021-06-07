@@ -77,7 +77,7 @@
                 "--activity-brought-to-front",
                 "-a android.intent.action.MAIN",
                 "-c android.intent.category.LAUNCHER",
-                "-n com.limelight.debug/com.limelight.LandingView"
+                "-n com.limelight.debug/com.limelight.PcView"
             ],
 
             "postLaunchPause": 1000,
