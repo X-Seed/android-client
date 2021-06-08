@@ -91,8 +91,9 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
                     // Wait for the binder to be ready
                     localBinder.waitForReady();
 
+                    ComputerDetails c = localBinder.getComputer(uuidString);
                     // Get the computer object
-                    computer = localBinder.getComputer(uuidString);
+                    computer = c;
                     if (computer == null) {
                         finish();
                         return;

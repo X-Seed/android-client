@@ -392,7 +392,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                     // Stop updates and wait while pairing
                     stopComputerUpdates(true);
 
-                    httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer),
+                    httpConn = new NvHTTP(computer.manualAddress,
                             managerBinder.getUniqueId(),
                             computer.serverCert,
                             PlatformBinding.getCryptoProvider(PcView.this));

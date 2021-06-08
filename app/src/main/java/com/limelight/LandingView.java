@@ -90,15 +90,14 @@ import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParserException;
 
 public class LandingView extends Activity {
-    private RequestQueue queue; 
+    private RequestQueue httpQueue; 
     private String serverUrl = "http://xseed.tech:2048/";
     private String serverIP = "";
     private Thread addThread, pairThread;
 
     private ComputerManagerService.ComputerManagerBinder managerBinder;
     private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
-    private final LinkedBlockingQueue<String> computersToAdd = new LinkedBlockingQueue<>();
-    private final LinkedBlockingQueue<ComputerDetails> computersToPair = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<String> computersToAdd, computersToPair;
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, final IBinder binder) {
@@ -117,7 +116,10 @@ public class LandingView extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
-        this.queue = Volley.newRequestQueue(this);
+        computersToAdd = new LinkedBlockingQueue<>();
+        computersToPair = new LinkedBlockingQueue<>();
+        httpQueue = Volley.newRequestQueue(this);
+        
         // UiHelper.setLocale(this);
         setContentView(R.layout.landing);
         UiHelper.notifyNewRootView(this);
@@ -165,7 +167,7 @@ public class LandingView extends Activity {
             }
         });
 
-        this.queue.add(req);
+        this.httpQueue.add(req);
     }
 
     protected void allocatePC(){
@@ -184,13 +186,11 @@ public class LandingView extends Activity {
                     String hostAddress = response.getString("ip");
 
                     computersToAdd.add(hostAddress);
-                    // doAddPc(hostAddress);
                 }
                 catch(Exception e){
                     e = e;
                     // throw e;
                 }
-                // startActivity(new Intent(LandingView.this, PcView.class));
             }
         }, new ErrorListener(){
             @Override 
@@ -199,11 +199,54 @@ public class LandingView extends Activity {
             }
         });
 
-        this.queue.add(req);
+        this.httpQueue.add(req);
     }
 
     protected void failedResourceAllocation(){
 
+    }
+
+    private boolean isWrongSubnetSiteLocalAddress(String address) {
+        try {
+            InetAddress targetAddress = InetAddress.getByName(address);
+            if (!(targetAddress instanceof Inet4Address) || !targetAddress.isSiteLocalAddress()) {
+                return false;
+            }
+
+            // We have a site-local address. Look for a matching local interface.
+            for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InterfaceAddress addr : iface.getInterfaceAddresses()) {
+                    if (!(addr.getAddress() instanceof Inet4Address) || !addr.getAddress().isSiteLocalAddress()) {
+                        // Skip non-site-local or non-IPv4 addresses
+                        continue;
+                    }
+
+                    byte[] targetAddrBytes = targetAddress.getAddress();
+                    byte[] ifaceAddrBytes = addr.getAddress().getAddress();
+
+                    // Compare prefix to ensure it's the same
+                    boolean addressMatches = true;
+                    for (int i = 0; i < addr.getNetworkPrefixLength(); i++) {
+                        if ((ifaceAddrBytes[i / 8] & (1 << (i % 8))) != (targetAddrBytes[i / 8] & (1 << (i % 8)))) {
+                            addressMatches = false;
+                            break;
+                        }
+                    }
+
+                    if (addressMatches) {
+                        return false;
+                    }
+                }
+            }
+
+            // Couldn't find a matching interface
+            return true;
+        } catch (SocketException e) {
+            e.printStackTrace();
+            return false;
+        } catch (UnknownHostException e) {
+            return false;
+        }
     }
 
     public void doAddPc(String host) {
@@ -224,9 +267,35 @@ public class LandingView extends Activity {
             e.printStackTrace();
             success = false;
         }
+
+        if (!success){
+            wrongSiteLocal = isWrongSubnetSiteLocalAddress(host);
+        }
+        if (!success && !wrongSiteLocal) {
+            // Run the test before dismissing the spinner because it can take a few seconds.
+            portTestResult = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443,
+                    MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989);
+        } else {
+            // Don't bother with the test if we succeeded or the IP address was bogus
+            portTestResult = MoonBridge.ML_TEST_RESULT_INCONCLUSIVE;
+        }
         
         // dialog.dismiss();
-        // doPair(details);
+
+        if (wrongSiteLocal) {
+            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), getResources().getString(R.string.addpc_wrong_sitelocal), false);
+        }
+        else if (!success) {
+            String dialogText;
+            if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)  {
+                dialogText = getResources().getString(R.string.nettest_text_blocked);
+            }
+            else {
+                dialogText = getResources().getString(R.string.addpc_fail);
+            }
+            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), dialogText, false);
+        }
+
         computersToPair.add(details);
     }
 
@@ -309,11 +378,11 @@ public class LandingView extends Activity {
                             success = true;
 
                             // Pin this certificate for later HTTPS use
-                            // managerBinder.getComputer(computer.uuid).serverCert = pm.getPairedCert();
+                            managerBinder.getComputer(computer.uuid).serverCert = pm.getPairedCert();
 
                             // Invalidate reachability information after pairing to force
                             // a refresh before reading pair state again
-                            // managerBinder.invalidateStateForComputer(computer.uuid);
+                            managerBinder.invalidateStateForComputer(computer.uuid);
                         }
                         else {
                             // Should be no other values
@@ -435,7 +504,7 @@ public class LandingView extends Activity {
             }
         });
 
-        this.queue.add(req);
+        this.httpQueue.add(req);
     }
 
 
