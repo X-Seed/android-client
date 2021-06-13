@@ -163,8 +163,9 @@ public class Dashboard extends Activity {
         updateUserInfo();
     }
 
-    private void playButtonBackendStateChange(){
-
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        // super.onSaveInstanceState(savedInstanceState);
     }
 
     private void updateUserInfo(){
