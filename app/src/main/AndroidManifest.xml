@@ -73,6 +73,11 @@
                 <category android:name="tv.ouya.intent.category.APP" />
             </intent-filter>  
         </activity>
+        <activity 
+            android:name=".Dashboard"
+            android:exported="true"
+            android:resizeableActivity="true">
+        </activity>
         <activity
             android:name=".PcView"
             android:exported="true"
@@ -94,7 +99,7 @@
             android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.limelight.PcView" />
+                android:value="com.limelight.Dashboard" />
         </activity>
         <activity
             android:name=".AppView"
@@ -102,7 +107,7 @@
             android:configChanges="mcc|mnc|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.limelight.PcView" />
+                android:value="com.limelight.Dashboard" />
         </activity>
         <activity
             android:name=".preferences.StreamSettings"
@@ -111,7 +116,7 @@
 
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.limelight.PcView" />
+                android:value="com.limelight.Dashboard" />
         </activity>
         <activity
             android:name=".preferences.AddComputerManually"

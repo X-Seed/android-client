@@ -33,8 +33,8 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.android.volley.Response.Listener;
 import com.android.volley.Response.ErrorListener;
-import android.content.ServiceConnection;
 
+import android.content.ServiceConnection;
 import android.app.Activity;
 import android.app.Service;
 import android.content.ComponentName;
@@ -93,48 +93,25 @@ public class LandingView extends Activity {
     private RequestQueue httpQueue; 
     private String serverUrl = "http://xseed.tech:2048/";
     private String serverIP = "";
-    private Thread addThread, pairThread;
-
-    private ComputerManagerService.ComputerManagerBinder managerBinder;
-    private boolean freezeUpdates, runningPolling, inForeground, completeOnCreateCalled;
-    private final LinkedBlockingQueue<String> computersToAdd, computersToPair;
-
-    private final ServiceConnection serviceConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className, final IBinder binder) {
-            managerBinder = ((ComputerManagerService.ComputerManagerBinder)binder);
-            startAddThread();
-            startPairThread();
-        }
-
-        public void onServiceDisconnected(ComponentName className) {
-            joinAddThread();
-            joinPairThread();
-            managerBinder = null;
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
-        computersToAdd = new LinkedBlockingQueue<>();
-        computersToPair = new LinkedBlockingQueue<>();
         httpQueue = Volley.newRequestQueue(this);
-        
+
         // UiHelper.setLocale(this);
         setContentView(R.layout.landing);
         UiHelper.notifyNewRootView(this);
 
-        // Bind to the ComputerManager service
-        bindService(new Intent(LandingView.this,
-        ComputerManagerService.class), serviceConnection, Service.BIND_AUTO_CREATE);
-    }
+   }
 
     public void handleLogin(View v){
         EditText userNameV = findViewById(R.id.userName);
         EditText passwordV = findViewById(R.id.password);
         String userName = userNameV.getText().toString();
         String password = passwordV.getText().toString();
-
+        
+        SpinnerDialog.displayDialog(this, "Logging in...", "", false);
         login(userName, password);
     }
 
@@ -150,326 +127,41 @@ public class LandingView extends Activity {
         JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, url, postObj, new Listener<JSONObject>(){
             @Override
             public void onResponse(JSONObject response){
+                SpinnerDialog.closeDialogs(LandingView.this);
                 try{
                     if(response.getString("status").equals("ok")){
                         // startActivity(new Intent(LandingView.this, PcView.class));
-                        allocatePC();
-                    }
-                }
-                catch(Exception e){
-                    // throw e;
-                }
-            }
-        }, new ErrorListener(){
-            @Override 
-            public void onErrorResponse(VolleyError error){
-                error = error;
-            }
-        });
-
-        this.httpQueue.add(req);
-    }
-
-    protected void allocatePC(){
-        String url = serverUrl + "allocateResource";
-
-        JsonObjectRequest req = new JsonObjectRequest(Request.Method.GET, url, new JSONObject(), new Listener<JSONObject>(){
-            @Override
-            public void onResponse(JSONObject response){
-                try{
-                    if(!response.getString("status").equals("ok")){
+                        String token = response.getString("token");
                         
-                        failedResourceAllocation();
-                        return;
+                        Intent i = new Intent(LandingView.this, Dashboard.class);
+                        i.putExtra("TOKEN", token);
+                        startActivity(i);
                     }
-
-                    String hostAddress = response.getString("ip");
-
-                    computersToAdd.add(hostAddress);
+                    else{
+                        Dialog.displayDialog(LandingView.this, "Login failed", response.getString("msg"), false);
+                    }
                 }
                 catch(Exception e){
                     e = e;
+                    Dialog.displayDialog(LandingView.this, "Exception", "Something bad happened with JSON object parsing", false);
                     // throw e;
                 }
             }
         }, new ErrorListener(){
             @Override 
             public void onErrorResponse(VolleyError error){
-                failedResourceAllocation();
+                SpinnerDialog.closeDialogs(LandingView.this);
+                error = error;
+
+                Dialog.displayDialog(LandingView.this, "Network error", "", false);
             }
         });
 
         this.httpQueue.add(req);
     }
 
-    protected void failedResourceAllocation(){
-
-    }
-
-    private boolean isWrongSubnetSiteLocalAddress(String address) {
-        try {
-            InetAddress targetAddress = InetAddress.getByName(address);
-            if (!(targetAddress instanceof Inet4Address) || !targetAddress.isSiteLocalAddress()) {
-                return false;
-            }
-
-            // We have a site-local address. Look for a matching local interface.
-            for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                for (InterfaceAddress addr : iface.getInterfaceAddresses()) {
-                    if (!(addr.getAddress() instanceof Inet4Address) || !addr.getAddress().isSiteLocalAddress()) {
-                        // Skip non-site-local or non-IPv4 addresses
-                        continue;
-                    }
-
-                    byte[] targetAddrBytes = targetAddress.getAddress();
-                    byte[] ifaceAddrBytes = addr.getAddress().getAddress();
-
-                    // Compare prefix to ensure it's the same
-                    boolean addressMatches = true;
-                    for (int i = 0; i < addr.getNetworkPrefixLength(); i++) {
-                        if ((ifaceAddrBytes[i / 8] & (1 << (i % 8))) != (targetAddrBytes[i / 8] & (1 << (i % 8)))) {
-                            addressMatches = false;
-                            break;
-                        }
-                    }
-
-                    if (addressMatches) {
-                        return false;
-                    }
-                }
-            }
-
-            // Couldn't find a matching interface
-            return true;
-        } catch (SocketException e) {
-            e.printStackTrace();
-            return false;
-        } catch (UnknownHostException e) {
-            return false;
-        }
-    }
-
-    public void doAddPc(String host) {
-        boolean wrongSiteLocal = false;
-        boolean success = true;
-        int portTestResult;
-
-        // SpinnerDialog dialog = SpinnerDialog.displayDialog(this, getResources().getString(R.string.title_add_pc),
-        //     getResources().getString(R.string.msg_add_pc), false);
-
-        ComputerDetails details = new ComputerDetails();
-        details.manualAddress = host;
-        try {
-            success = managerBinder.addComputerBlocking(details);
-        } catch (Exception e) {
-            // This can be thrown from OkHttp if the host fails to canonicalize to a valid name.
-            // https://github.com/square/okhttp/blob/okhttp_27/okhttp/src/main/java/com/squareup/okhttp/HttpUrl.java#L705
-            e.printStackTrace();
-            success = false;
-        }
-
-        if (!success){
-            wrongSiteLocal = isWrongSubnetSiteLocalAddress(host);
-        }
-        if (!success && !wrongSiteLocal) {
-            // Run the test before dismissing the spinner because it can take a few seconds.
-            portTestResult = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443,
-                    MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989);
-        } else {
-            // Don't bother with the test if we succeeded or the IP address was bogus
-            portTestResult = MoonBridge.ML_TEST_RESULT_INCONCLUSIVE;
-        }
-        
-        // dialog.dismiss();
-
-        if (wrongSiteLocal) {
-            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), getResources().getString(R.string.addpc_wrong_sitelocal), false);
-        }
-        else if (!success) {
-            String dialogText;
-            if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)  {
-                dialogText = getResources().getString(R.string.nettest_text_blocked);
-            }
-            else {
-                dialogText = getResources().getString(R.string.addpc_fail);
-            }
-            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), dialogText, false);
-        }
-
-        computersToPair.add(details);
-    }
-
-    private void stopComputerUpdates(boolean wait) {
-        if (managerBinder != null) {
-            if (!runningPolling) {
-                return;
-            }
-
-            freezeUpdates = true;
-
-            managerBinder.stopPolling();
-
-            if (wait) {
-                managerBinder.waitForPollingStopped();
-            }
-
-            runningPolling = false;
-        }
-    }
-
-    private void doPair(final ComputerDetails computer) {
-        // if (computer.state == ComputerDetails.State.OFFLINE ||
-        //         ServerHelper.getCurrentAddressFromComputer(computer) == null) {
-        //     Toast.makeText(LandingView.this, getResources().getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show();
-        //     return;
-        // }
-        // if (computer.runningGameId != 0) {
-        //     Toast.makeText(LandingView.this, getResources().getString(R.string.pair_pc_ingame), Toast.LENGTH_LONG).show();
-        //     return;
-        // }
-        // if (managerBinder == null) {
-        //     Toast.makeText(LandingView.this, getResources().getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show();
-        //     return;
-        // }
-
-        // Toast.makeText(LandingView.this, getResources().getString(R.string.pairing), Toast.LENGTH_SHORT).show();
-
-        // Thread pairThread = new Thread(new Runnable() {
-        //     @Override
-        //     public void run() {
-                NvHTTP httpConn;
-                String message;
-                boolean success = false;
-                try {
-                    // Stop updates and wait while pairing
-                    stopComputerUpdates(true);
-
-                    httpConn = new NvHTTP(ServerHelper.getCurrentAddressFromComputer(computer),
-                            managerBinder.getUniqueId(),
-                            computer.serverCert,
-                            PlatformBinding.getCryptoProvider(LandingView.this));
-                    if (httpConn.getPairState() == PairState.PAIRED) {
-                        // Don't display any toast, but open the app list
-                        message = null;
-                        success = true;
-                    }
-                    else {
-                        final String pinStr = PairingManager.generatePinString();
-
-                        // Spin the dialog off in a thread because it blocks
-                        Dialog.displayDialog(LandingView.this, getResources().getString(R.string.pair_pairing_title),
-                                getResources().getString(R.string.pair_pairing_msg)+" "+pinStr, false);
-
-                        PairingManager pm = httpConn.getPairingManager();
-
-                        PairState pairState = pm.pair(httpConn.getServerInfo(), pinStr);
-                        if (pairState == PairState.PIN_WRONG) {
-                            message = getResources().getString(R.string.pair_incorrect_pin);
-                        }
-                        else if (pairState == PairState.FAILED) {
-                            message = getResources().getString(R.string.pair_fail);
-                        }
-                        else if (pairState == PairState.ALREADY_IN_PROGRESS) {
-                            message = getResources().getString(R.string.pair_already_in_progress);
-                        }
-                        else if (pairState == PairState.PAIRED) {
-                            // Just navigate to the app view without displaying a toast
-                            message = null;
-                            success = true;
-
-                            // Pin this certificate for later HTTPS use
-                            managerBinder.getComputer(computer.uuid).serverCert = pm.getPairedCert();
-
-                            // Invalidate reachability information after pairing to force
-                            // a refresh before reading pair state again
-                            managerBinder.invalidateStateForComputer(computer.uuid);
-                        }
-                        else {
-                            // Should be no other values
-                            message = null;
-                        }
-                    }
-                } catch (UnknownHostException e) {
-                    message = getResources().getString(R.string.error_unknown_host);
-                } catch (FileNotFoundException e) {
-                    message = getResources().getString(R.string.error_404);
-                } catch (XmlPullParserException | IOException e) {
-                    e.printStackTrace();
-                    message = e.getMessage();
-                }
-
-                Dialog.closeDialogs();
-
-                final String toastMessage = message;
-                final boolean toastSuccess = success;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (toastMessage != null) {
-                            Toast.makeText(LandingView.this, toastMessage, Toast.LENGTH_LONG).show();
-                        }
-
-                        if (toastSuccess) {
-                            // Open the app list after a successful pairing attempt
-                            doAppList(computer, true, false);
-                        }
-                        else {
-                            // Start polling again if we're still in the foreground
-                            startComputerUpdates();
-                        }
-                    }
-                });
-            // }
-        // });
-        // Handler mainHandler = new Handler(getMainLooper());
-        // mainHandler.post(pairThread);
-    }
-
-
-    private void doAppList(ComputerDetails computer, boolean newlyPaired, boolean showHiddenGames) {
-        if (computer.state == ComputerDetails.State.OFFLINE) {
-            Toast.makeText(LandingView.this, getResources().getString(R.string.error_pc_offline), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (managerBinder == null) {
-            Toast.makeText(LandingView.this, getResources().getString(R.string.error_manager_not_running), Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        Intent i = new Intent(this, AppView.class);
-        i.putExtra(AppView.NAME_EXTRA, computer.name);
-        i.putExtra(AppView.UUID_EXTRA, computer.uuid);
-        i.putExtra(AppView.NEW_PAIR_EXTRA, newlyPaired);
-        i.putExtra(AppView.SHOW_HIDDEN_APPS_EXTRA, showHiddenGames);
-        startActivity(i);
-    }
-
-
-
-    private void startComputerUpdates() {
-        // Only allow polling to start if we're bound to CMS, polling is not already running,
-        // and our activity is in the foreground.
-        if (managerBinder != null && !runningPolling && inForeground) {
-            freezeUpdates = false;
-            managerBinder.startPolling(new ComputerManagerListener() {
-                @Override
-                public void notifyComputerUpdated(final ComputerDetails details) {
-                    if (!freezeUpdates) {
-                        LandingView.this.runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                // updateComputer(details);
-                            }
-                        });
-                    }
-                }
-            });
-            runningPolling = true;
-        }
-    }
-
-
     public void handleRegister(View v){
+        SpinnerDialog.displayDialog(this, "Registering", "Checking the details...", false);
         String url = serverUrl + "register";
 
         EditText userNameV = findViewById(R.id.userName);
@@ -487,91 +179,31 @@ public class LandingView extends Activity {
         JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, url, postObj, new Listener<JSONObject>(){
             @Override
             public void onResponse(JSONObject response){
+                SpinnerDialog.closeDialogs(LandingView.this);
                 try{
-                    if(response.getString("status") == "ok"){
+                    if(response.getString("status").equals("ok")){
                         // startActivity(new Intent(LandingView.this, LandingView.class));
                         login(userName, password);
+                        return;
+                    }
+                    else{
+                        String msg = response.getString("msg");
+                        Dialog.displayDialog(LandingView.this, "Failed", msg, false);
                     }
                 }
                 catch(Exception e){
-                    // throw e;
+                    Dialog.displayDialog(LandingView.this, "Exception", e.getMessage(), false);
                 }
             }
         }, new ErrorListener(){
             @Override 
             public void onErrorResponse(VolleyError error){
-
+                SpinnerDialog.closeDialogs(LandingView.this);
+                Dialog.displayDialog(LandingView.this, "Network error", "", false);
             }
         });
 
         this.httpQueue.add(req);
-    }
-
-
-    private void startAddThread() {
-        addThread = new Thread() {
-            @Override
-            public void run() {
-                while (!isInterrupted()) {
-                    String computer;
-
-                    try {
-                        computer = computersToAdd.take();
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    doAddPc(computer);
-                }
-            }
-        };
-        addThread.setName("UI - AddComputerManually");
-        addThread.start();
-    }
-
-    private void startPairThread(){
-        pairThread = new Thread() {
-            @Override
-            public void run() {
-                while (!isInterrupted()) {
-                    ComputerDetails computer;
-
-                    try {
-                        computer = computersToPair.take();
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    doPair(computer);
-                }
-            }
-        };
-        pairThread.setName("UI - PairComputer");
-        pairThread.start();
-    }
-
-    private void joinAddThread() {
-        if (addThread != null) {
-            addThread.interrupt();
-
-            try {
-                addThread.join();
-            } catch (InterruptedException ignored) {}
-
-            addThread = null;
-        }
-    }
-
-    private void joinPairThread() {
-        if (pairThread != null) {
-            pairThread.interrupt();
-
-            try {
-                pairThread.join();
-            } catch (InterruptedException ignored) {}
-
-            pairThread = null;
-        }
     }
 
     // protected void api(String method, String url, ){
@@ -604,16 +236,11 @@ public class LandingView extends Activity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (managerBinder != null) {
-            joinAddThread();
-            unbindService(serviceConnection);
-        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-
     }
 
     @Override

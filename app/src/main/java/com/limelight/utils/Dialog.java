@@ -80,18 +80,18 @@ public class Dialog implements Runnable {
                   runOnDismiss.run();
               }
         });
-        alert.setButton(AlertDialog.BUTTON_NEUTRAL, activity.getResources().getText(R.string.help), new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, int which) {
-                synchronized (rundownDialogs) {
-                    rundownDialogs.remove(Dialog.this);
-                    alert.dismiss();
-                }
+        // alert.setButton(AlertDialog.BUTTON_NEUTRAL, activity.getResources().getText(R.string.help), new DialogInterface.OnClickListener() {
+        //     public void onClick(DialogInterface dialog, int which) {
+        //         synchronized (rundownDialogs) {
+        //             rundownDialogs.remove(Dialog.this);
+        //             alert.dismiss();
+        //         }
 
-                runOnDismiss.run();
+        //         runOnDismiss.run();
 
-                HelpLauncher.launchTroubleshooting(activity);
-            }
-        });
+        //         // HelpLauncher.launchTroubleshooting(activity);
+        //     }
+        // });
         alert.setOnShowListener(new DialogInterface.OnShowListener(){
 
             @Override

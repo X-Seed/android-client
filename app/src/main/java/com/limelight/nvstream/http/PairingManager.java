@@ -15,6 +15,16 @@ import java.security.cert.*;
 import java.util.Arrays;
 import java.util.Locale;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+import com.android.volley.Response.Listener;
+import com.android.volley.Response.ErrorListener;
+
 public class PairingManager {
 
     private NvHTTP http;
@@ -181,7 +191,7 @@ public class PairingManager {
         return serverCert;
     }
     
-    public PairState pair(String serverInfo, String pin) throws IOException, XmlPullParserException {
+    public PairState pair(String serverInfo, String pin, boolean pairTimeout) throws IOException, XmlPullParserException {
         PairingHashAlgorithm hashAlgo;
 
         int serverMajorVersion = http.getServerMajorVersion(serverInfo);
@@ -208,10 +218,12 @@ public class PairingManager {
         "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&phrase=getservercert&salt="+
         bytesToHex(salt)+"&clientcert="+bytesToHex(pemCertBytes);
         
-        String getCert = http.openHttpConnectionToString(rUrl, false);
+        String getCert = http.openHttpConnectionToString(rUrl, pairTimeout);
+
         if (!NvHTTP.getXmlString(getCert, "paired").equals("1")) {
-            // return PairState.FAILED;
-            return PairState.ALREADY_IN_PROGRESS;
+            http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
+            return PairState.FAILED;
+            // return PairState.ALREADY_IN_PROGRESS;
         }
 
         // Save this cert for retrieval later
@@ -255,8 +267,7 @@ public class PairingManager {
                 true);
         if (!NvHTTP.getXmlString(secretResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
-            // return PairState.FAILED;
-            return PairState.ALREADY_IN_PROGRESS;
+            return PairState.FAILED;
         }
         
         // Get the server's signed secret
@@ -270,8 +281,7 @@ public class PairingManager {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
             
             // Looks like a MITM
-            // return PairState.FAILED;
-            return PairState.ALREADY_IN_PROGRESS;
+            return PairState.FAILED;
         }
         
         // Ensure the server challenge matched what we expected (aka the PIN was correct)
@@ -291,8 +301,7 @@ public class PairingManager {
                 true);
         if (!NvHTTP.getXmlString(clientSecretResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
-            // return PairState.FAILED;
-            return PairState.ALREADY_IN_PROGRESS;
+            return PairState.FAILED;
         }
         
         // Do the initial challenge (seems neccessary for us to show as paired)
@@ -300,13 +309,14 @@ public class PairingManager {
                 "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&phrase=pairchallenge", true);
         if (!NvHTTP.getXmlString(pairChallenge, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
-            // return PairState.FAILED;
-            return PairState.ALREADY_IN_PROGRESS;
+            return PairState.FAILED;
         }
 
         return PairState.PAIRED;
     }
     
+
+
     private interface PairingHashAlgorithm {
         int getHashLength();
         byte[] hashData(byte[] data);
