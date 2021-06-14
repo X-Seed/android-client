@@ -13,6 +13,7 @@ import com.limelight.nvstream.http.NvApp;
 import com.limelight.nvstream.http.NvHTTP;
 import com.limelight.nvstream.http.PairingManager;
 import com.limelight.preferences.PreferenceConfiguration;
+import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.utils.CacheHelper;
@@ -38,6 +39,7 @@ import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
@@ -46,6 +48,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.AdapterView.AdapterContextMenuInfo;
+import android.widget.ImageButton;
+
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -313,6 +317,15 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         // Bind to the computer manager service
         bindService(new Intent(this, ComputerManagerService.class), serviceConnection,
                 Service.BIND_AUTO_CREATE);
+
+        ImageButton settingsButton = findViewById(R.id.settingsButton);
+
+        settingsButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(AppView.this, StreamSettings.class));
+            }
+        });
     }
 
     private void updateHiddenApps(boolean hideImmediately) {

@@ -125,7 +125,7 @@
             android:label="Add Computer Manually">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.limelight.PcView" />
+                android:value="com.limelight.Dashboard" />
         </activity>
         <!-- This will fall back to sensorLandscape at runtime on Android 4.2 and below -->
         <activity

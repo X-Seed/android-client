@@ -235,7 +235,7 @@ public class Dashboard extends Activity {
                 public void onResponse(JSONObject response){
                     try{
                         if(!response.getString("status").equals("ok")){
-                            failedResourceAllocation(response.getString("msg"));
+                            failedResourceConnection(response.getString("msg"));
                             return;
                         }
                     }
@@ -247,7 +247,7 @@ public class Dashboard extends Activity {
             }, new ErrorListener(){
                 @Override 
                 public void onErrorResponse(VolleyError error){
-                    
+                    error = error;
                 }
             });
             req.setRetryPolicy(volleyPolicy);
@@ -255,6 +255,7 @@ public class Dashboard extends Activity {
             xseedApiQueue.add(req);
         }};
 
+        handler.postDelayed(sendRequestToAgent, 0);
         handler.postDelayed(sendRequestToAgent, 500);
         handler.postDelayed(sendRequestToAgent, 1000);
         handler.postDelayed(sendRequestToAgent, 1500);
