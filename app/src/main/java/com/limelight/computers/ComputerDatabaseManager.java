@@ -32,6 +32,9 @@ public class ComputerDatabaseManager {
 
     public ComputerDatabaseManager(Context c) {
         try {
+            //XSeed hack: No local DB. TODO: remove the need for this
+            c.deleteDatabase(COMPUTER_DB_NAME);
+
             // Create or open an existing DB
             computerDb = c.openOrCreateDatabase(COMPUTER_DB_NAME, 0, null);
         } catch (SQLiteException e) {

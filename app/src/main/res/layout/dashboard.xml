@@ -41,6 +41,15 @@ tools:context=".Dashboard">
     />
 
     <Button 
+    android:id="@+id/networkCheck"
+    android:layout_width="match_parent"
+    android:layout_height="200dp"
+    android:text="Network Check"
+    android:textSize="25sp"
+    android:onClick="networkCheck"
+    />
+
+    <Button 
     android:layout_width="match_parent"
     android:layout_height="200dp"
     android:text="Get More Coins"
