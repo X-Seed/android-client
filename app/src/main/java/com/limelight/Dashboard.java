@@ -70,8 +70,6 @@ import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
-import com.limelight.utils.Dialog;
-import com.limelight.utils.UiHelper;
 
 
 import java.io.IOException;
@@ -91,6 +89,12 @@ import java.net.UnknownHostException;
 
 import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParserException;
+import org.riversun.promise.Promise;
+import org.riversun.promise.Func;
+import org.riversun.promise.Action;
+
+import com.limelight.utils.NetHelper;
+import com.limelight.utils.NetHelper.NetQuality;
 
 public class Dashboard extends Activity {
     private RequestQueue xseedApiQueue; 
@@ -166,6 +170,17 @@ public class Dashboard extends Activity {
     @Override
     public void onSaveInstanceState(Bundle savedInstanceState) {
         // super.onSaveInstanceState(savedInstanceState);
+    }
+
+    public void networkCheck(View v){
+        Thread t = new Thread(){
+            public run(){
+                NetQuality res = NetHelper.networkTest();
+                
+            }
+        };
+        t.setName("Network Test");
+        t.start();
     }
 
     private void updateUserInfo(){
