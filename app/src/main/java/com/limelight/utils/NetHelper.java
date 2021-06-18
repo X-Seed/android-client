@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okhttp3.Call;
 
 import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParserException;
@@ -59,13 +60,13 @@ public class NetHelper {
         }
         //In ms
         public long latency;
-        //In kbps
+        //In Mbps
         public long bandwidth;
 
         public long[] pings = new long[testN];
         public long[] bites = new long[testN];
         public long pingDeviation;
-        public long bitesDeviation;
+        public long biteDeviation;
     }
 
     public static OkHttpClient httpClient;
@@ -80,9 +81,9 @@ public class NetHelper {
 
         if(httpClient == null){
             httpClient = new OkHttpClient.Builder()
-            .connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
-            .readTimeout(0, TimeUnit.MILLISECONDS)
-            .connectTimeout(5000, TimeUnit.MILLISECONDS)
+            // .connectionPool(new ConnectionPool(1, 5, TimeUnit.MILLISECONDS))
+            // .readTimeout(0, TimeUnit.MILLISECONDS)
+            // .connectTimeout(5000, TimeUnit.MILLISECONDS)
             .build();
         }
 
@@ -133,32 +134,39 @@ public class NetHelper {
             e.printStackTrace();
         }
         
+        // TODO: use a standard protocol to test bandwidth
+        // HTTP can only be used to estimate average bandwidth
         // Avg bandwidth test
         url = "http://[" + serverIp + "]:1704/networkCheck/bandwidth";
+        int biteSize = 500; //500kb
         req = new Request.Builder().url(url).build();
         startT  = new long[testN];
 
+        long[] bwInMbps = new long[testN];
         for (int i = 0; i < testN; i++) {
-            startT[i] = System.currentTimeMillis();
             try{
-                httpClient.newCall(req).execute();
+                Call c = httpClient.newCall(req);
+                startT[i] = System.currentTimeMillis();
+                c.execute();
                 bites[i] = System.currentTimeMillis() - startT[i];
+                bwInMbps[i] = (long) (biteSize * 8 / bites[i] );
             }
             catch(Exception e){
                 bites[i] = -1;
             }
         }
+        
 
         Stats pStat = Stats.of(pings);
-        Stats bStat = Stats.of(bites);
+        Stats bStat = Stats.of(bwInMbps);
         NetQuality nq = new NetQuality();
         System.arraycopy(pings, 0, nq.pings, 0, testN);
         System.arraycopy(bites, 0, nq.bites, 0, testN);
         nq.latency = (long) pStat.mean();
         nq.pingDeviation = (long) pStat.sampleStandardDeviation();
         nq.bandwidth = (long) bStat.mean();
-        nq.bitesDeviation = (long) bStat.sampleStandardDeviation();
-
+        nq.biteDeviation = (long) bStat.sampleStandardDeviation();
+        
         return nq;
     }
 

@@ -84,6 +84,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Arrays;
+// import java.util.function.UnaryOperator;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -173,20 +174,93 @@ public class Dashboard extends Activity {
         // super.onSaveInstanceState(savedInstanceState);
     }
 
+    public static String networkCheckHostIp = "";
     public void networkCheck(View v){
-        SpinnerDialog.displayDialog(Dashboard.this, "Network Check", "Checking connection to a random PC in our network...", false);
+        SpinnerDialog spinner = SpinnerDialog.displayDialog(Dashboard.this, "Network Check", "Allocating a PC...", false);
 
-        Runnable r = () -> {
-            NetQuality res = NetHelper.networkTest("2402:800:61b3:ab14:156e:6ca2:2532:b460");
-            Dialog.displayDialog(Dashboard.this, "Network check", "Pings: " 
-            + Arrays.toString(res.pings) + "\nBites: " + Arrays.toString(res.bites), false);
+        JSONObject postObjToken = new JSONObject();
+        try{
+            postObjToken.put("token", token);
+        }
+        catch(Exception e){}
 
-            SpinnerDialog.closeDialogs(Dashboard.this);
-        };
-        // runOnUiThread(r);
-        Thread t = new Thread(r);
-        t.setName("Network Test");
-        t.start();
+        String releaseUrl = serverUrl + "releaseResource";
+        JsonObjectRequest releaseResourceReq = 
+        new JsonObjectRequest(Request.Method.POST, releaseUrl, postObjToken, new Listener<JSONObject>(){
+            @Override
+            public void onResponse(JSONObject response){
+                try{
+                    if(!response.getString("status").equals("ok")){
+                        failedResourceRelease(response.getString("msg"));
+                        return;
+                    }
+                }
+                catch(Exception e){
+                    e = e;
+                    failedResourceRelease(e.getMessage());
+                    // throw e;
+                }
+            }
+        }, new ErrorListener(){
+            @Override 
+            public void onErrorResponse(VolleyError error){
+                failedResourceRelease(error.toString());
+            }
+        });
+        releaseResourceReq.setRetryPolicy(volleyPolicy);
+
+        String allocateUrl = serverUrl + "allocateResource";
+        JsonObjectRequest allocateResourceReq = new JsonObjectRequest(Request.Method.POST, allocateUrl, postObjToken, new Listener<JSONObject>(){
+            @Override
+            public void onResponse(JSONObject response){
+                try{
+                    if(!response.getString("status").equals("ok")){
+                        
+                        failedResourceAllocation(response.getString("msg"));
+                        return;
+                    }
+                    JSONObject resource = response.getJSONObject("resource");
+                    String hostIp = resource.getString("ip");
+                    Dashboard.networkCheckHostIp = hostIp;
+
+                    spinner.setMessage("Testing network connection to " + hostIp);
+
+                    // Define runnable 
+                    Runnable r = () -> {
+                        NetQuality res = NetHelper.networkTest(Dashboard.networkCheckHostIp);
+
+                        SpinnerDialog.closeDialogs(Dashboard.this);
+
+                        Dialog.displayDialog(Dashboard.this, "Network check", "Average ping: " 
+                        + res.latency + " ms\nBandwidth: " + res.bandwidth + " Mbps", false);
+
+                        // Dialog.displayDialog(Dashboard.this, "Network check", "Pings: " 
+                        // + Arrays.toString(res.pings) + "\nBites: " + Arrays.toString(res.bites), false);
+                        
+                        Dashboard.this.xseedApiQueue.add(releaseResourceReq);
+                    };
+
+                    Thread t = new Thread(r);
+                    t.setName("Network Test");
+                    t.start();
+                }
+                catch(Exception e){
+                    e = e;
+                    // throw e;
+                    failedResourceAllocation(e.getMessage());
+                    return;
+                }
+            }
+        }, new ErrorListener(){
+            @Override 
+            public void onErrorResponse(VolleyError error){
+                SpinnerDialog.closeDialogs(Dashboard.this);
+                failedResourceAllocation(error.toString());
+            }
+        });
+        allocateResourceReq.setRetryPolicy(volleyPolicy);
+
+        this.xseedApiQueue.add(allocateResourceReq);
     }
 
     private void updateUserInfo(){
@@ -345,16 +419,6 @@ public class Dashboard extends Activity {
                         failedResourceRelease(response.getString("msg"));
                         return;
                     }
-
-                    // managerBinder.removeComputer(assignedComputer);
-                    // new DiskAssetLoader(Dashboard.this).deleteAssetsForComputer(assignedComputer.uuid);
-
-                    // Delete hidden games preference value
-                    // getSharedPreferences(AppView.HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
-                    // .edit()
-                    // .remove(assignedComputer.uuid)
-                    // .apply();
-
                     SpinnerDialog.closeDialogs(Dashboard.this);
                     Dialog.displayDialog(Dashboard.this, "PC stopped", "Billing is stopped. Your coins are safe! You can safely close the app now.", false);
                 }
