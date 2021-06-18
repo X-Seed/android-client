@@ -245,7 +245,7 @@ public class PairingManager {
         // Send the encrypted challenge to the server
         String challengeResp = http.openHttpConnectionToString(http.baseUrlHttp + 
                 "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&clientchallenge="+bytesToHex(encryptedChallenge),
-                false);
+                true);
         if (!NvHTTP.getXmlString(challengeResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
             return PairState.ALREADY_IN_PROGRESS;

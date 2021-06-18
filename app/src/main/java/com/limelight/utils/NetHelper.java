@@ -21,6 +21,15 @@ import org.riversun.promise.Action;
 
 import com.google.common.math.Stats;
 
+import java.util.concurrent.TimeUnit;
+import java.lang.Process;
+import java.lang.Runtime;
+import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.StringBuffer;
+
 public class NetHelper {
     public static boolean isActiveNetworkVpn(Context context) {
         ConnectivityManager connMgr = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -55,48 +64,100 @@ public class NetHelper {
 
         public long[] pings = new long[testN];
         public long[] bites = new long[testN];
-        public long pingVariance;
-        public long bitesVariance;
+        public long pingDeviation;
+        public long bitesDeviation;
     }
 
-    public static OkHttpClient httpClient = new OkHttpClient();
+    public static OkHttpClient httpClient;
 
     public static int testN = 10;
-    public static NetQuality networkTest(){
-        // Ping test
-        String url = serverUrl + "networkCheck/ping";
-        Request req = new Request.Builder().url(url).build();
-
+    public static NetQuality networkTest(String serverIp){
         long startT[]  = new long[testN];
-        long pings[] = new long[testN];
-        for (int i = 0; i < testN; i++) {
-            startT[i] = System.currentTimeMillis();
-            try (Response res = httpClient.newCall(req).execute()){
-                pings[i] = System.currentTimeMillis() - startT[i];
-            }
+        long pings[] = new long[testN]; 
+        long bites[] = new long[testN]; //bandwidth - bite of data 
+        String url;
+        Request req;
+
+        if(httpClient == null){
+            httpClient = new OkHttpClient.Builder()
+            .connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .connectTimeout(5000, TimeUnit.MILLISECONDS)
+            .build();
         }
 
+        //////////////////
+        // HTTP Ping test
+        // String url = "http://[" + serverIp + "]:1704/networkCheck/ping";
+        // Request req = new Request.Builder().url(url).build();
+
+        // long startT[]  = new long[testN];
+        // long pings[] = new long[testN];
+        // Response res; 
+        // for (int i = 0; i < testN; i++) {
+        //     startT[i] = System.currentTimeMillis();
+        //     try{
+        //         httpClient.newCall(req).execute();
+        //         pings[i] = System.currentTimeMillis() - startT[i];
+        //     }
+        //     catch(Exception e){
+        //         pings[i] = -1;
+        //     }
+        // }
+
+        //////////////////
+        // ICMP Ping test
+        try{
+            Process p = Runtime.getRuntime().exec("ping6 -c " + testN + " " + serverIp);
+            // p.waitFor();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            int i;
+            char[] buffer = new char[4096];
+            StringBuffer output = new StringBuffer();
+            while((i = reader.read(buffer)) > 0){
+                output.append(buffer, 0, i);
+            }
+            reader.close();
+
+            String[] lines = output.toString().split("\n", 0);
+            i = 0;
+            for(String l : lines){
+                System.out.println(l);
+                if(l.contains("icmp_seq")){
+                    pings[i] =(long) Double.parseDouble(l.split("time=", 0)[1].split(" ms", 0)[0]);
+                    i++;
+                }
+            }
+        }
+        catch(IOException e){
+            e.printStackTrace();
+        }
+        
         // Avg bandwidth test
-        url = serverUrl + "networkCheck/bandwidth";
+        url = "http://[" + serverIp + "]:1704/networkCheck/bandwidth";
         req = new Request.Builder().url(url).build();
         startT  = new long[testN];
-        long bites[] = new long[testN];
+
         for (int i = 0; i < testN; i++) {
             startT[i] = System.currentTimeMillis();
-            try (Response res = httpClient.newCall(req).execute()){
+            try{
+                httpClient.newCall(req).execute();
                 bites[i] = System.currentTimeMillis() - startT[i];
+            }
+            catch(Exception e){
+                bites[i] = -1;
             }
         }
 
-        Stats pStat = new Stats(pings);
-        Stats bStat = new Stats(bites);
+        Stats pStat = Stats.of(pings);
+        Stats bStat = Stats.of(bites);
         NetQuality nq = new NetQuality();
         System.arraycopy(pings, 0, nq.pings, 0, testN);
         System.arraycopy(bites, 0, nq.bites, 0, testN);
-        nq.latency = pStat.mean();
-        nq.pingVariance = pStat.sampleVariance();
-        nq.bandwidth = bStat.mean();
-        nq.bitesVariance = bStat.sampleVariance();
+        nq.latency = (long) pStat.mean();
+        nq.pingDeviation = (long) pStat.sampleStandardDeviation();
+        nq.bandwidth = (long) bStat.mean();
+        nq.bitesDeviation = (long) bStat.sampleStandardDeviation();
 
         return nq;
     }

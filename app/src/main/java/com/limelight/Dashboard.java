@@ -83,6 +83,7 @@ import java.util.Collections;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Arrays;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -173,12 +174,17 @@ public class Dashboard extends Activity {
     }
 
     public void networkCheck(View v){
-        Thread t = new Thread(){
-            public run(){
-                NetQuality res = NetHelper.networkTest();
-                
-            }
+        SpinnerDialog.displayDialog(Dashboard.this, "Network Check", "Checking connection to a random PC in our network...", false);
+
+        Runnable r = () -> {
+            NetQuality res = NetHelper.networkTest("2402:800:61b3:ab14:156e:6ca2:2532:b460");
+            Dialog.displayDialog(Dashboard.this, "Network check", "Pings: " 
+            + Arrays.toString(res.pings) + "\nBites: " + Arrays.toString(res.bites), false);
+
+            SpinnerDialog.closeDialogs(Dashboard.this);
         };
+        // runOnUiThread(r);
+        Thread t = new Thread(r);
         t.setName("Network Test");
         t.start();
     }
@@ -240,8 +246,7 @@ public class Dashboard extends Activity {
 
     private void gameStreamAutoPair(String hostIP, String pin){
         Handler handler = new Handler(Looper.getMainLooper());
-        Runnable sendRequestToAgent = new Runnable(){
-        public void run(){
+        Runnable sendRequestToAgent = ()-> {
             String url = "http://[" + hostIP + "]:1704/" + "gameStreamAutoPair/" + pin;
 
             JsonObjectRequest req = 
@@ -268,7 +273,7 @@ public class Dashboard extends Activity {
             req.setRetryPolicy(volleyPolicy);
 
             xseedApiQueue.add(req);
-        }};
+        };
 
         handler.postDelayed(sendRequestToAgent, 0);
         handler.postDelayed(sendRequestToAgent, 500);
