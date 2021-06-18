@@ -455,7 +455,8 @@ public class Dashboard extends Activity {
         // dialog.dismiss();
 
         if (wrongSiteLocal) {
-            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), getResources().getString(R.string.addpc_wrong_sitelocal), false);
+            // Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), getResources().getString(R.string.addpc_wrong_sitelocal), false);
+            failedResourceConnection("Cannot add PC to MoonBridge. Msg: " + getResources().getString(R.string.addpc_wrong_sitelocal));
         }
         else if (!success) {
             String dialogText;
@@ -465,9 +466,11 @@ public class Dashboard extends Activity {
             else {
                 dialogText = getResources().getString(R.string.addpc_fail);
             }
-            Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), dialogText, false);
+            // Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title), dialogText, false);
+            failedResourceConnection("Cannot add PC to MoonBridge. Msg: " + dialogText);
+            return;
         }
-
+        
         // Success
         computersToPair.add(details);
         assignedComputer = details;
