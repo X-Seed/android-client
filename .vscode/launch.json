@@ -44,7 +44,7 @@
                 "--activity-brought-to-front",
                 "-a android.intent.action.MAIN",
                 "-c android.intent.category.LAUNCHER",
-                "-n com.limelight.debug/com.limelight.LandingView"
+                "-n com.limelight.debug/com.limelight.PcView"
             ],
 
             // Manually specify the activity to run when the app is started. This option is
@@ -61,7 +61,7 @@
         {
             "type": "android",
             "request": "launch",
-            "name": "App Build & Launch",
+            "name": "Build & Launch (Landing)",
             "preLaunchTask": "run gradle",
             "appSrcRoot": "${workspaceRoot}/app/src/main",
             "apkFile": "${workspaceRoot}/app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk",
@@ -78,6 +78,31 @@
                 "-a android.intent.action.MAIN",
                 "-c android.intent.category.LAUNCHER",
                 "-n com.limelight.debug/com.limelight.LandingView"
+            ],
+
+            "postLaunchPause": 1000,
+            "trace": false
+        },
+        {
+            "type": "android",
+            "request": "launch",
+            "name": "Build & Launch (PcView)",
+            "preLaunchTask": "run gradle",
+            "appSrcRoot": "${workspaceRoot}/app/src/main",
+            "apkFile": "${workspaceRoot}/app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk",
+            "adbSocket": "localhost:5037",
+            "autoStartADB": true,
+            "staleBuild": "warn",
+            "targetDevice": "",
+            "manifestFile": "${workspaceRoot}/app/src/main/AndroidManifest.xml",
+            "pmInstallArgs": ["-r"],
+
+            "amStartArgs": [
+                "-D",
+                "--activity-brought-to-front",
+                "-a android.intent.action.MAIN",
+                "-c android.intent.category.LAUNCHER",
+                "-n com.limelight.debug/com.limelight.PcView"
             ],
 
             "postLaunchPause": 1000,

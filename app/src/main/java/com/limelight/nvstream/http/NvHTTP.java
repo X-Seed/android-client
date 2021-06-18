@@ -65,8 +65,8 @@ public class NvHTTP {
 
     public static final int HTTPS_PORT = 47984;
     public static final int HTTP_PORT = 47989;
-    public static final int CONNECTION_TIMEOUT = 3000;
-    public static final int READ_TIMEOUT = 5000;
+    public static final int CONNECTION_TIMEOUT = 10000; //default 3
+    public static final int READ_TIMEOUT = 10000; //default 5
 
     // Print URL and content to logcat on debug builds
     private static boolean verbose = BuildConfig.DEBUG;
