@@ -52,12 +52,13 @@ import com.limelight.LimeLog;
 import com.limelight.nvstream.ConnectionContext;
 import com.limelight.nvstream.http.PairingManager.PairState;
 
+import com.android.volley.RequestQueue;
+
 import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-
 
 public class NvHTTP {
     private String uniqueId;
@@ -73,6 +74,7 @@ public class NvHTTP {
 
     public String baseUrlHttps;
     public String baseUrlHttp;
+    public String hostAddr;
     
     private OkHttpClient httpClient;
     private OkHttpClient httpClientWithReadTimeout;
@@ -180,6 +182,28 @@ public class NvHTTP {
                 .build();
     }
     
+    public NvHTTP(String address, String uniqueId, X509Certificate serverCert, LimelightCryptoProvider cryptoProvider, RequestQueue xseedApiQueue) throws IOException {
+        // Use the same UID for all Moonlight clients so we can quit games
+        // started by other Moonlight clients.
+        this.hostAddr = address;
+        this.uniqueId = "0123456789ABCDEF";
+
+        this.serverCert = serverCert;
+
+        initializeHttpState(cryptoProvider);
+
+        try {
+            // The URI constructor takes care of escaping IPv6 literals
+            this.baseUrlHttps = new URI("https", null, address, HTTPS_PORT, null, null, null).toString();
+            this.baseUrlHttp = new URI("http", null, address, HTTP_PORT, null, null, null).toString();
+        } catch (URISyntaxException e) {
+            // Encapsulate URISyntaxException into IOException for callers to handle more easily
+            throw new IOException(e);
+        }
+
+        this.pm = new PairingManager(this, cryptoProvider, xseedApiQueue);
+    }
+
     public NvHTTP(String address, String uniqueId, X509Certificate serverCert, LimelightCryptoProvider cryptoProvider) throws IOException {
         // Use the same UID for all Moonlight clients so we can quit games
         // started by other Moonlight clients.

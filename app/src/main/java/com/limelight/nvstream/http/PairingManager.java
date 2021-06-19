@@ -24,6 +24,12 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.android.volley.Response.Listener;
 import com.android.volley.Response.ErrorListener;
+import com.android.volley.DefaultRetryPolicy;
+
+import android.os.Looper;
+import android.os.Handler;
+
+import org.json.JSONObject;
 
 public class PairingManager {
 
@@ -35,7 +41,9 @@ public class PairingManager {
     private byte[] pemCertBytes;
 
     private X509Certificate serverCert;
-    
+    private int xseedAgentPort = 1704;
+    private RequestQueue xseedApiQueue;
+
     public enum PairState {
         NOT_PAIRED,
         PAIRED,
@@ -43,12 +51,62 @@ public class PairingManager {
         FAILED,
         ALREADY_IN_PROGRESS
     }
-    
+
     public PairingManager(NvHTTP http, LimelightCryptoProvider cryptoProvider) {
         this.http = http;
         this.cert = cryptoProvider.getClientCertificate();
         this.pemCertBytes = cryptoProvider.getPemEncodedClientCertificate();
         this.pk = cryptoProvider.getClientPrivateKey();
+    }
+    
+    public PairingManager(NvHTTP http, LimelightCryptoProvider cryptoProvider, RequestQueue xseedApiQueue) {
+        this.http = http;
+        this.cert = cryptoProvider.getClientCertificate();
+        this.pemCertBytes = cryptoProvider.getPemEncodedClientCertificate();
+        this.pk = cryptoProvider.getClientPrivateKey();
+        
+        this.xseedApiQueue = xseedApiQueue;
+    }
+
+    private DefaultRetryPolicy volleyPolicy = new DefaultRetryPolicy(
+        7000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT);
+
+    private void gameStreamAutoPair(String hostIP, String pin){
+        Handler handler = new Handler(Looper.getMainLooper());
+        Runnable sendRequestToAgent = ()-> {
+            String url = "http://[" + hostIP + "]:1704/" + "gameStreamAutoPair/" + pin;
+
+            JsonObjectRequest req = 
+            new JsonObjectRequest(Request.Method.GET, url, new JSONObject(), new Listener<JSONObject>(){
+                @Override
+                public void onResponse(JSONObject response){
+                    try{
+                        if(!response.getString("status").equals("ok")){
+                            // failedResourceConnection(response.getString("msg"));
+                            return;
+                        }
+                    }
+                    catch(Exception e){
+                        e = e;
+                    }
+                }
+            }, new ErrorListener(){
+                @Override 
+                public void onErrorResponse(VolleyError error){
+                    error = error;
+                }
+            });
+            req.setRetryPolicy(volleyPolicy);
+
+            xseedApiQueue.add(req);
+        };
+
+        // handler.postDelayed(sendRequestToAgent, 0);
+        handler.postDelayed(sendRequestToAgent, 500);
+        // handler.postDelayed(sendRequestToAgent, 1000);
+        // handler.postDelayed(sendRequestToAgent, 1500);
+        handler.postDelayed(sendRequestToAgent, 2000);
+        handler.postDelayed(sendRequestToAgent, 5000);
     }
     
     final private static char[] hexArray = "0123456789ABCDEF".toCharArray();
@@ -191,7 +249,7 @@ public class PairingManager {
         return serverCert;
     }
     
-    public PairState pair(String serverInfo, String pin, boolean pairTimeout) throws IOException, XmlPullParserException {
+    public PairState pair(String serverInfo, String pin, boolean pairTimeout, boolean autoPair) throws IOException, XmlPullParserException {
         PairingHashAlgorithm hashAlgo;
 
         int serverMajorVersion = http.getServerMajorVersion(serverInfo);
@@ -214,6 +272,9 @@ public class PairingManager {
         
         // Send the salt and get the server cert. This doesn't have a read timeout
         // because the user must enter the PIN before the server responds
+        if(autoPair){
+            gameStreamAutoPair(http.hostAddr, pin);
+        }
         String rUrl = http.baseUrlHttp +
         "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&phrase=getservercert&salt="+
         bytesToHex(salt)+"&clientcert="+bytesToHex(pemCertBytes);

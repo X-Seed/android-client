@@ -119,6 +119,8 @@ public class Dashboard extends Activity {
     private DefaultRetryPolicy volleyPolicy = new DefaultRetryPolicy(
         7000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT);
 
+    // TODO: Remove the need for managerBinder
+
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, final IBinder binder) {
             managerBinder = ((ComputerManagerService.ComputerManagerBinder)binder);
@@ -318,44 +320,6 @@ public class Dashboard extends Activity {
         releasePC();
     }
 
-    private void gameStreamAutoPair(String hostIP, String pin){
-        Handler handler = new Handler(Looper.getMainLooper());
-        Runnable sendRequestToAgent = ()-> {
-            String url = "http://[" + hostIP + "]:1704/" + "gameStreamAutoPair/" + pin;
-
-            JsonObjectRequest req = 
-            new JsonObjectRequest(Request.Method.GET, url, new JSONObject(), new Listener<JSONObject>(){
-                @Override
-                public void onResponse(JSONObject response){
-                    try{
-                        if(!response.getString("status").equals("ok")){
-                            failedResourceConnection(response.getString("msg"));
-                            return;
-                        }
-                    }
-                    catch(Exception e){
-                        e = e;
-                        // throw e;
-                    }
-                }
-            }, new ErrorListener(){
-                @Override 
-                public void onErrorResponse(VolleyError error){
-                    error = error;
-                }
-            });
-            req.setRetryPolicy(volleyPolicy);
-
-            xseedApiQueue.add(req);
-        };
-
-        handler.postDelayed(sendRequestToAgent, 0);
-        handler.postDelayed(sendRequestToAgent, 500);
-        handler.postDelayed(sendRequestToAgent, 1000);
-        handler.postDelayed(sendRequestToAgent, 1500);
-        handler.postDelayed(sendRequestToAgent, 2000);
-    }
-
     private void setTimeoutLol(Runnable r, long delayinMs){
         Handler handler = new Handler(Looper.getMainLooper());
         handler.postDelayed(r, delayinMs);
@@ -441,7 +405,9 @@ public class Dashboard extends Activity {
 
     private void failedResourceConnection(String message){
         playButtonCheckedBySystem = true;
-        playButton.setChecked(false);
+        runOnUiThread(() -> {
+            playButton.setChecked(false);
+        });
         SpinnerDialog.closeDialogs(this);
         Dialog.displayDialog(this, "Failed to connect to PC", message, false);
 
@@ -450,14 +416,18 @@ public class Dashboard extends Activity {
 
     protected void failedResourceAllocation(String message){
         playButtonCheckedBySystem = true;
-        playButton.setChecked(false);
+        runOnUiThread(() -> {
+            playButton.setChecked(false);
+        });
         SpinnerDialog.closeDialogs(this);
         Dialog.displayDialog(this, "Failed to assign PC", message, false);
     }
 
     protected void failedResourceRelease(String message){
         playButtonCheckedBySystem = true;
-        playButton.setChecked(true);
+        runOnUiThread(() -> {
+            playButton.setChecked(true);
+        });
         SpinnerDialog.closeDialogs(this);
         Dialog.displayDialog(this, "Failed to stop PC", "WARNING: You are still losing you coins if the PC is not stopped. Please send this to the admins for assistance. Error message: " +  message, false);
     }
@@ -591,7 +561,8 @@ public class Dashboard extends Activity {
             httpConn = new NvHTTP(computerAddr,
                     managerBinder.getUniqueId(),
                     computer.serverCert,
-                    PlatformBinding.getCryptoProvider(Dashboard.this));
+                    PlatformBinding.getCryptoProvider(Dashboard.this),
+                    xseedApiQueue);
             if (httpConn.getPairState() == PairState.PAIRED) {
                 // Don't display any toast, but open the app list
                 message = null;
@@ -601,7 +572,7 @@ public class Dashboard extends Activity {
                 final String pinStr = PairingManager.generatePinString();
 
                 // TODO: Start auto pairing thread
-                gameStreamAutoPair(computerAddr, pinStr);
+                // gameStreamAutoPair(computerAddr, pinStr);
 
                 // Spin the dialog off in a thread because it blocks
                 // Dialog.displayDialog(Dashboard.this, getResources().getString(R.string.pair_pairing_title),
@@ -609,7 +580,7 @@ public class Dashboard extends Activity {
 
                 PairingManager pm = httpConn.getPairingManager();
 
-                PairState pairState = pm.pair(httpConn.getServerInfo(), pinStr, true);
+                PairState pairState = pm.pair(httpConn.getServerInfo(), pinStr, true, true);
 
                 SpinnerDialog.closeDialogs(Dashboard.this);
                 if (pairState == PairState.PAIRED) {
