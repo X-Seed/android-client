@@ -327,7 +327,8 @@ public class NvHTTP {
         }
         else {
             // No pinned cert, so use HTTP
-            return openHttpConnectionToString(baseUrlHttp + "/serverinfo", true);
+            String tempUrl = baseUrlHttp + "/serverinfo";
+            return openHttpConnectionToString(tempUrl, true);
         }
     }
     

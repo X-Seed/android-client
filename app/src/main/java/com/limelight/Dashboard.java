@@ -347,7 +347,14 @@ public class Dashboard extends Activity {
                     String hostAddress = resource.getString("ip");
 
                     SpinnerDialog.displayDialog(Dashboard.this, "PC assigned", "Pairing with the host PC...", false);
-                    computersToAdd.add(hostAddress);
+                    // computersToAdd.add(hostAddress);
+
+                    Thread t = new Thread(() -> {
+                        doAddPc(hostAddress);
+                    });
+                    t.setName("PC Connection");
+                    t.start();
+                    
                 }
                 catch(Exception e){
                     e = e;
@@ -526,7 +533,7 @@ public class Dashboard extends Activity {
         }
         
         // Success
-        computersToPair.add(details);
+        doPair(details);
         assignedComputer = details;
     }
 
