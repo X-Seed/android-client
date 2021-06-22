@@ -102,7 +102,6 @@ public class Dashboard extends Activity {
     private RequestQueue xseedApiQueue; 
     private String serverUrl = "http://xseed.tech:2048/";
     private String serverIP = "";
-    private Thread addThread, pairThread;
     private String token = "TOKEN";
 
     private ComputerManagerService.ComputerManagerBinder managerBinder;
@@ -115,6 +114,8 @@ public class Dashboard extends Activity {
     private boolean playButtonCheckedBySystem = false;
     private ComputerDetails assignedComputer;
 
+    private NvHTTP nvHttpCon;
+
     // No retry, 7s timeout
     private DefaultRetryPolicy volleyPolicy = new DefaultRetryPolicy(
         7000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT);
@@ -124,13 +125,9 @@ public class Dashboard extends Activity {
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, final IBinder binder) {
             managerBinder = ((ComputerManagerService.ComputerManagerBinder)binder);
-            startAddThread();
-            startPairThread();
         }
 
         public void onServiceDisconnected(ComponentName className) {
-            joinAddThread();
-            joinPairThread();
             managerBinder = null;
         }
     };
@@ -349,12 +346,12 @@ public class Dashboard extends Activity {
                     SpinnerDialog.displayDialog(Dashboard.this, "PC assigned", "Pairing with the host PC...", false);
                     // computersToAdd.add(hostAddress);
 
+                    //OkHttp request on main thread will throw IOException, so need to create thread.
                     Thread t = new Thread(() -> {
                         doAddPc(hostAddress);
                     });
                     t.setName("PC Connection");
                     t.start();
-                    
                 }
                 catch(Exception e){
                     e = e;
@@ -376,6 +373,24 @@ public class Dashboard extends Activity {
 
     private void releasePC(){
         String url = serverUrl + "releaseResource";
+        SpinnerDialog spinner = SpinnerDialog.displayDialog(Dashboard.this, "Releasing PC", "Stopping running apps on PC...", false);
+        // boolean closeAppSuccess = false;
+        // try {
+        //     if(nvHttpCon != null) closeAppSuccess = nvHttpCon.quitApp();
+        //     else closeAppSuccess = true;
+        // }
+        // catch(Exception e){
+        //     SpinnerDialog.closeDialogs(Dashboard.this);
+        //     failedResourceRelease("Cannot stop running apps on PC. Details: " + e.getMessage());
+        //     return;
+        // }
+        // if(!closeAppSuccess){
+        //     SpinnerDialog.closeDialogs(Dashboard.this);
+        //     failedResourceRelease("Cannot stop running apps on PC. Details: Unknown reason");
+        //     return;
+        // }
+        spinner.setMessage("Notifying the server to release the PC...");
+
         JSONObject postObj = new JSONObject();
         try{
             postObj.put("token", token);
@@ -574,6 +589,7 @@ public class Dashboard extends Activity {
                 // Don't display any toast, but open the app list
                 message = null;
                 success = true;
+                nvHttpCon = httpConn;
             }
             else {
                 final String pinStr = PairingManager.generatePinString();
@@ -638,22 +654,20 @@ public class Dashboard extends Activity {
 
         final String toastMessage = message;
         final boolean toastSuccess = success;
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (toastMessage != null) {
-                    // Toast.makeText(Dashboard.this, toastMessage, Toast.LENGTH_LONG).show();
-                }
+        runOnUiThread(() -> {
+            if (toastMessage != null) {
+                // Toast.makeText(Dashboard.this, toastMessage, Toast.LENGTH_LONG).show();
+            }
 
-                if (toastSuccess) {
-                    // Open the app list after a successful pairing attempt
-                    doAppList(computer, true, false);
-                }
-                else {
-                    failedResourceConnection(toastMessage);
-                    // Start polling again if we're still in the foreground
-                    startComputerUpdates();
-                }
+            if (toastSuccess) {
+
+                // Open the app list after a successful pairing attempt
+                doAppList(computer, true, false);
+            }
+            else {
+                failedResourceConnection(toastMessage);
+                // Start polling again if we're still in the foreground
+                startComputerUpdates();
             }
         });
     }
@@ -700,72 +714,6 @@ public class Dashboard extends Activity {
         }
     }
 
-    private void startAddThread() {
-        addThread = new Thread() {
-            @Override
-            public void run() {
-                while (!isInterrupted()) {
-                    String computer;
-
-                    try {
-                        computer = computersToAdd.take();
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    doAddPc(computer);
-                }
-            }
-        };
-        addThread.setName("UI - AddComputerManually");
-        addThread.start();
-    }
-
-    private void startPairThread(){
-        pairThread = new Thread() {
-            @Override
-            public void run() {
-                while (!isInterrupted()) {
-                    ComputerDetails computer;
-
-                    try {
-                        computer = computersToPair.take();
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    doPair(computer);
-                }
-            }
-        };
-        pairThread.setName("UI - PairComputer");
-        pairThread.start();
-    }
-
-    private void joinAddThread() {
-        if (addThread != null) {
-            addThread.interrupt();
-
-            try {
-                addThread.join();
-            } catch (InterruptedException ignored) {}
-
-            addThread = null;
-        }
-    }
-
-    private void joinPairThread() {
-        if (pairThread != null) {
-            pairThread.interrupt();
-
-            try {
-                pairThread.join();
-            } catch (InterruptedException ignored) {}
-
-            pairThread = null;
-        }
-    }
-
     // protected void api(String method, String url, ){
     //     JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, url, postObj, new Listener<JSONObject>(){
     //         @Override
@@ -798,7 +746,6 @@ public class Dashboard extends Activity {
     public void onDestroy() {
         super.onDestroy();
         if (managerBinder != null) {
-            joinAddThread();
             unbindService(serviceConnection);
         }
     }

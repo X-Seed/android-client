@@ -157,6 +157,10 @@ public class PairingManager {
     {
         byte[] rand = new byte[length];
         new SecureRandom().nextBytes(rand);
+        // Test fixed salt
+        // for(int i = 0; i < length; i++){
+        //     rand[i] = 1;
+        // }
         return rand;
     }
     
@@ -263,8 +267,9 @@ public class PairingManager {
             hashAlgo = new Sha1PairingHash();
         }
         
-        // Generate a salt for hashing the PIN
+        // Testing fixed salt & pin
         byte[] salt = generateRandomBytes(16);
+        // pin = "1234";
 
         // Combine the salt and pin, then create an AES key from them
         byte[] saltAndPin = saltPin(salt, pin);
@@ -304,9 +309,9 @@ public class PairingManager {
         byte[] encryptedChallenge = encryptAes(randomChallenge, aesKey);
         
         // Send the encrypted challenge to the server
-        String challengeResp = http.openHttpConnectionToString(http.baseUrlHttp + 
-                "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&clientchallenge="+bytesToHex(encryptedChallenge),
-                true);
+        rUrl = http.baseUrlHttp + "/pair?"+http.buildUniqueIdUuidString()+
+        "&devicename=roth&updateState=1&clientchallenge="+bytesToHex(encryptedChallenge);
+        String challengeResp = http.openHttpConnectionToString(rUrl, true);
         if (!NvHTTP.getXmlString(challengeResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
             return PairState.ALREADY_IN_PROGRESS;
@@ -321,11 +326,13 @@ public class PairingManager {
         
         // Using another 16 bytes secret, compute a challenge response hash using the secret, our cert sig, and the challenge
         byte[] clientSecret = generateRandomBytes(16);
-        byte[] challengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(serverChallenge, cert.getSignature()), clientSecret));
+        byte[] clientSignature = cert.getSignature();
+        byte[] challengeRespHash = hashAlgo.hashData(concatBytes(concatBytes(serverChallenge, clientSignature), clientSecret));
         byte[] challengeRespEncrypted = encryptAes(challengeRespHash, aesKey);
-        String secretResp = http.openHttpConnectionToString(http.baseUrlHttp +
-                "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&serverchallengeresp="+bytesToHex(challengeRespEncrypted),
-                true);
+
+        rUrl = http.baseUrlHttp+"/pair?"+http.buildUniqueIdUuidString()+
+        "&devicename=roth&updateState=1&serverchallengeresp="+bytesToHex(challengeRespEncrypted);
+        String secretResp = http.openHttpConnectionToString(rUrl, true);
         if (!NvHTTP.getXmlString(secretResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
             return PairState.FAILED;
@@ -356,10 +363,11 @@ public class PairingManager {
         }
         
         // Send the server our signed secret
-        byte[] clientPairingSecret = concatBytes(clientSecret, signData(clientSecret, pk));
-        String clientSecretResp = http.openHttpConnectionToString(http.baseUrlHttp + 
-                "/pair?"+http.buildUniqueIdUuidString()+"&devicename=roth&updateState=1&clientpairingsecret="+bytesToHex(clientPairingSecret),
-                true);
+        byte[] signedSecret = signData(clientSecret, pk);
+        byte[] clientPairingSecret = concatBytes(clientSecret, signedSecret);
+        rUrl = http.baseUrlHttp+"/pair?"+http.buildUniqueIdUuidString()+
+        "&devicename=roth&updateState=1&clientpairingsecret="+bytesToHex(clientPairingSecret);
+        String clientSecretResp = http.openHttpConnectionToString(rUrl, true);
         if (!NvHTTP.getXmlString(clientSecretResp, "paired").equals("1")) {
             http.openHttpConnectionToString(http.baseUrlHttp + "/unpair?"+http.buildUniqueIdUuidString(), true);
             return PairState.FAILED;
